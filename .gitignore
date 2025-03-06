@@ -1,0 +1,11 @@
+# Default 
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+# Data Folder
+inputs/*
+outputs/*
+resources/*
+# Mac OS specificities
+.DS_Store
