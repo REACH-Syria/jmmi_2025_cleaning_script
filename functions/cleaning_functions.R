@@ -63,8 +63,11 @@ X2025_03_05_1029_other_log_translated <- read_excel("outputs/cleaning_logs/2025_
 
 X2025_03_06_1008_other_responses <- read_excel("outputs/cleaning_logs/2025_03_06_1008_other_responses.xlsx")
 
+X2025_03_08_1640_other_responses <- read_excel("outputs/cleaning_logs/2025_03_08_1640_other_responses.xlsx")
+
+
 others_bind <- plyr::rbind.fill(X2025_03_04_other_responses,X2025_03_05_1029_other_log_translated,
-                                X2025_03_06_1008_other_responses)
+                                X2025_03_06_1008_other_responses,X2025_03_08_1640_other_responses)
 
 #'---------------------------------------------------------------------------------------
 # currency conversion ----
@@ -317,7 +320,11 @@ X2025_03_06_log_reach <- read_excel("outputs/cleaning_logs/northeast/2025_03_06_
 X2025_03_06_log_soli <- read_excel("outputs/cleaning_logs/northeast/2025_03_06_northeast_data_checks_Solidarites_International.xlsx",
                                     sheet = "cleaning_log")
 
-log_nes <- plyr::rbind.fill(log_reach,log_soli, X2025_03_06_log_reach, X2025_03_06_log_soli)
+X2025_03_08_REACH <- read_excel("outputs/cleaning_logs/northeast/2025_03_08_northeast_data_checks_REACH.xlsx",
+                                sheet = "cleaning_log")
+
+
+log_nes <- plyr::rbind.fill(log_reach,log_soli, X2025_03_06_log_reach, X2025_03_06_log_soli,X2025_03_08_REACH)
 
 log_nes <- log_nes %>% 
   mutate(unique_id = paste(uuid,question, sep = "_"))
@@ -331,6 +338,14 @@ X2025_03_06_northwest_ATAA <- read_excel("outputs/cleaning_logs/northwest/2025_0
 X2025_03_06_northwest_reach <- read_excel("outputs/cleaning_logs/northwest/2025_03_06_northwest_data_checks_REACH.xlsx",
                                          sheet = "cleaning_log") 
 
-log_nws <- plyr::rbind.fill(log_reach,X2025_03_06_northwest_ATAA,X2025_03_06_northwest_reach)%>%
+X2025_03_08_northwest_ATAA <- read_excel("outputs/cleaning_logs/northwest/2025_03_08_northwest_data_checks_ATAA.xlsx",
+                                                     sheet = "cleaning_log")
+
+X2025_03_08_northwest_REACH <- read_excel("outputs/cleaning_logs/northwest/2025_03_08_northwest_data_checks_REACH.xlsx",
+                                                      sheet = "cleaning_log")
+
+
+log_nws <- plyr::rbind.fill(log_reach,X2025_03_06_northwest_ATAA,X2025_03_06_northwest_reach,
+                            X2025_03_08_northwest_ATAA, X2025_03_08_northwest_REACH)%>%
   mutate(unique_id = paste(uuid,question, sep = "_"))
 
