@@ -289,7 +289,7 @@ clean_log_with_notes <- function(df_list) {
 # to share with partners
 clean_log_no_notes <- function(df_list){
   df_list$cleaning_log <- df_list$cleaning_log %>%
-    dplyr::filter(Note == "no_note") %>%
+    # dplyr::filter(Note == "no_note") %>%
     filter(str_ends(question, "price_unit_item")|
              question %in% c("country_area_label",
                              "shop_currency",

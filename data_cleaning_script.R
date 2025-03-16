@@ -20,7 +20,6 @@ pacman::p_load(
 
 # cleaning functions
 source("functions/cleaning_functions.R")
-
 # Directories
 create_directories("outputs")
 
@@ -35,6 +34,9 @@ data_tool <- load_data_and_tool(filename.dataset, koboToolPath)
 raw_df <- data_tool$raw
 survey <- data_tool$tool_survey
 choices <- data_tool$tool_choices
+
+# cleaning functions
+source("functions/cleaning_functions.R")
 
 
 #'---------------------------------------------------------------------------------------
@@ -80,6 +82,13 @@ converted_nes <- converted_data$Converted_NES_SRP
 converted_nws <- converted_data$Converted_NWS_TRY
 df_currency <- converted_data$Data_NES_SRP_NWS_TRY
 
+converted_data %>%
+  openxlsx::write.xlsx(
+    .,
+    file = paste0("outputs/raw_data_converted/", format(Sys.time(),"%Y_%m_%d_%H%M"), "JMMJ_converted_raw_data.xlsx")
+    
+    
+  )
 #'---------------------------------------------------------------------------------------
 # Checking Outliers of the prices collected----
 #'---------------------------------------------------------------------------------------
@@ -130,8 +139,9 @@ df_check_northwest_list$cleaning_log <- df_check_northwest_list$cleaning_log %>%
   relocate("issue",explanation,"old_value","new_value","change_type", .after = "label::arabic") %>% 
   mutate(unique_id = paste(uuid,question, sep = "_"),
          checked = case_when(unique_id %in% log_nws$unique_id ~ "Yes",
-                             TRUE ~ "No")) %>% 
-  dplyr::filter(checked == "No")
+                             TRUE ~ "No")) 
+# %>% 
+#   dplyr::filter(checked == "No")
 
 
 #Saving the cleaning logs for each organisation in northwest
@@ -205,8 +215,9 @@ df_check_northeast_list$cleaning_log <- df_check_northeast_list$cleaning_log %>%
   relocate("issue",explanation,"old_value","new_value","change_type", .after = "label::arabic") %>% 
   mutate(unique_id = paste(uuid,question, sep = "_"),
          checked = case_when(unique_id %in% log_nes$unique_id ~ "Yes",
-                             TRUE ~ "No")) %>% 
-  dplyr::filter(checked == "No")
+                             TRUE ~ "No")) 
+# %>% 
+#   dplyr::filter(checked == "No")
 
 
 #Saving the cleaning logs for each organisation in northeast
@@ -245,5 +256,5 @@ northeast_outliers <- df_check_northeast_list$cleaning_log
 all_outliers <- rbind(northwest_outliers,northeast_outliers)
 all_outliers_notes <- rbind(northeast_log_notes, northwest_log_notes)
 
-write.xlsx(all_outliers, file = "outputs/cleaning_logs/outliers_log_checked_2025_03_06.xlsx")
-write.xlsx(all_outliers_notes, file = "outputs/cleaning_logs/all_outliers_checked_with_notes_2025_03_06.xlsx")
+write.xlsx(all_outliers, file = "outputs/cleaning_logs/outliers_log_checked_2025_03_16.xlsx")
+write.xlsx(all_outliers_notes, file = "outputs/cleaning_logs/all_outliers_checked_with_notes_2025_03_16.xlsx")
