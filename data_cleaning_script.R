@@ -15,7 +15,7 @@ if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
 pacman::p_load(
   tidyverse, readxl, writexl, openxlsx, httr, gsheet, gridExtra,
   magrittr, sf, leaflet, mapview, anytime, lubridate, data.table,
-  cleaningtools, Hmisc, rstatix
+  cleaningtools, Hmisc, rstatix, janitor
 )
 
 # cleaning functions
@@ -258,3 +258,75 @@ all_outliers_notes <- rbind(northeast_log_notes, northwest_log_notes)
 
 write.xlsx(all_outliers, file = "outputs/cleaning_logs/outliers_log_checked_2025_03_16.xlsx")
 write.xlsx(all_outliers_notes, file = "outputs/cleaning_logs/all_outliers_checked_with_notes_2025_03_16.xlsx")
+
+#'---------------------------------------------------------------------------------------
+# Data cleaning ----
+#'---------------------------------------------------------------------------------------
+# read in the cleaned data
+df_raw <- converted_data$Raw_data
+
+# read in the cleaning logs
+
+others_filled_logs <- read_excel("outputs/filled_cleaning_logs/others_filled_logs_2025_03_16.xlsx")
+outliers_filled_log <- read_excel("outputs/filled_cleaning_logs/outliers_filled_logs_2025_03_16.xlsx")
+
+filled_logs <- plyr::rbind.fill(others_filled_logs, outliers_filled_log)
+
+# reviewing the cleaning logs
+
+cleaningtools::review_cleaning_log( raw_dataset = df_raw,
+                                    raw_data_uuid_column = "X_uuid",
+                                    cleaning_log = filled_logs,
+                                    cleaning_log_change_type_column = "change_type",
+                                    change_response_value = "change_response",
+                                    cleaning_log_question_column = "question",
+                                    cleaning_log_uuid_column = "uuid",
+                                    cleaning_log_new_value_column = "new_value")
+
+
+
+# function for actually doing data cleaning
+df_clean <- create_clean_data(raw_dataset = df_raw, 
+                              raw_data_uuid_column = 'X_uuid', 
+                              cl = filled_logs,
+                              cleaning_log_change_type_column = "change_type",
+                              change_response_value = "change_response", 
+                              NA_response_value = "blank_response", 
+                              no_change_value = "no_action", 
+                              remove_survey_value = "remove_survey",
+                              cleaning_log_question_column =  "question",
+                              cleaning_log_uuid_column = 'uuid',
+                              cleaning_log_new_value_column = "new_value")
+
+
+#save the clean dataset
+write.xlsx(df_clean, file = "outputs/enumerator_checks/df_clean_changed.xlsx")
+
+
+#'---------------------------------------------------------------------------------------
+#Currency conversion after data cleaning----
+#'---------------------------------------------------------------------------------------
+
+converted_cleaned_data <- currency_conversion(df_clean)
+converted_cleaned_nes <- converted_cleaned_data$Converted_NES_SRP
+converted_cleaned_nws <- converted_cleaned_data$Converted_NWS_TRY
+cleaned_df_currency <- converted_cleaned_data$Data_NES_SRP_NWS_TRY
+exchange_rate <- cleaned_df_currency %>% 
+  tabyl(region,exchange_rate_medians_sell)
+
+cleaned_jmmi_data <- list(
+  "raw_data" = df_raw,
+  "cleaned_data" = df_clean,
+  "cleaned_converted_data" = cleaned_df_currency,
+  "exchange_rate" = exchange_rate,
+  "converted_cleaned_nes" = converted_cleaned_nes,
+  "converted_cleaned_nws" = converted_cleaned_nws
+)
+
+cleaned_jmmi_data %>%
+  openxlsx::write.xlsx(
+    .,
+    file = paste0("outputs/enumerator_checks//", format(Sys.time(),"%Y_%m_%d_%H%M"), "JMMJ_cleaned_data.xlsx")
+    
+    
+  )

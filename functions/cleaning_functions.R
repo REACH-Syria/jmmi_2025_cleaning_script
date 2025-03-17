@@ -9,7 +9,8 @@ create_directories <- function(base_dir = "outputs", dirs = NULL) {
       "cleaning_logs",
       "enumerator_checks",
       "filled_cleaning_logs",
-      "raw_data_converted"
+      "raw_data_converted",
+      "cleaned_data",
     )
   }
   
