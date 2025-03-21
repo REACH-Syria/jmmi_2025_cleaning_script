@@ -11,20 +11,20 @@ setwd(dirname(getActiveDocumentContext()$path))
 getwd()
 
 if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
-
 pacman::p_load(
   tidyverse, readxl, writexl, openxlsx, httr, gsheet, gridExtra,
   magrittr, sf, leaflet, mapview, anytime, lubridate, data.table,
-  cleaningtools, Hmisc, rstatix, janitor
+  cleaningtools, Hmisc, rstatix, janitor,jsonlite,dplyr
 )
 
 # cleaning functions
 source("functions/cleaning_functions.R")
+source("functions/calculations.R")
 # Directories
 create_directories("outputs")
 
 #'---------------------------------------------------------------------------------------
-# Loading the tool and data  ----
+# 1. Loading the tool and data  ----
 #'---------------------------------------------------------------------------------------
 filename.dataset <- "inputs/REACH_SYR_SYR1702_JMMI_March25.xlsx"
 koboToolPath <-"inputs/TOOL_JMMI_MARCH.xlsx"
@@ -35,12 +35,9 @@ raw_df <- data_tool$raw
 survey <- data_tool$tool_survey
 choices <- data_tool$tool_choices
 
-# cleaning functions
-source("functions/cleaning_functions.R")
-
 
 #'---------------------------------------------------------------------------------------
-# Other responses ----
+# 2. Other responses ----
 #'---------------------------------------------------------------------------------------
 output <- cleaningtools::check_others(
   dataset = raw_df,
@@ -52,17 +49,14 @@ output <- cleaningtools::check_others(
 other_log <- output$other_log
 
 other_log <- other_log %>% 
-  mutate(unique_id = paste(uuid,question, sep = "_"),
-         checked = case_when(unique_id %in% others_bind$unique_id ~ "Yes",
-                             TRUE ~ "No")) %>% 
-  dplyr::filter(checked == "No")
+  mutate(unique_id = paste(uuid,question, sep = "_"))
 
 
 other_log_translated <- other_log %>%
   mutate(old_value_en=translateR::translate(content.vec = old_value ,
-                                           microsoft.api.key = source("resources/microsoft.api.key.syria.R")$value,
-                                           microsoft.api.region = "switzerlandnorth",
-                                           source.lang="ar", target.lang="en"))
+                                            microsoft.api.key = source("resources/microsoft.api.key.syria.R")$value,
+                                            microsoft.api.region = "switzerlandnorth",
+                                            source.lang="ar", target.lang="en"))
 
 other_log_translated <- other_log_translated %>% 
   mutate(
@@ -71,10 +65,10 @@ other_log_translated <- other_log_translated %>%
     invalid_other = NA_character_
   )
 
-write.xlsx(other_log_translated, file = paste0("outputs/cleaning_logs/", format(Sys.time(),"%Y_%m_%d_%H%M"), "_other_responses.xlsx"))
- 
+write.xlsx(other_log_translated, file = paste0("outputs/cleaning_logs/translation/", format(Sys.time(),"%Y_%m_%d_%H%M"), "_other_responses.xlsx"))
+
 #'---------------------------------------------------------------------------------------
-# Currency conversion ----
+# 3. Currency conversion ----
 #'---------------------------------------------------------------------------------------
 
 converted_data <- currency_conversion(raw_df)
@@ -90,9 +84,16 @@ converted_data %>%
     
   )
 #'---------------------------------------------------------------------------------------
-# Checking Outliers of the prices collected----
+# 4. Checking Outliers of the prices collected----
 #'---------------------------------------------------------------------------------------
 check_list <- read_excel("inputs/check_list.xlsx")
+
+
+df_translation <- survey %>%
+  dplyr::select(`label::arabic`,name)%>%
+  na.omit() %>%
+  dplyr::rename("question" = name)
+
 
 ### Fuel, water and Internet prices ----
 table_dft <- outliers_fuel_water(df_currency, raw_df)
@@ -137,11 +138,8 @@ df_check_northwest_list$cleaning_log <- left_join(df_check_northwest_list$cleani
 df_check_northwest_list$cleaning_log <- df_check_northwest_list$cleaning_log %>%
   mutate(explanation = " ") %>%
   relocate("issue",explanation,"old_value","new_value","change_type", .after = "label::arabic") %>% 
-  mutate(unique_id = paste(uuid,question, sep = "_"),
-         checked = case_when(unique_id %in% log_nws$unique_id ~ "Yes",
-                             TRUE ~ "No")) 
-# %>% 
-#   dplyr::filter(checked == "No")
+  mutate(unique_id = paste(uuid,question, sep = "_"))
+
 
 
 #Saving the cleaning logs for each organisation in northwest
@@ -174,6 +172,7 @@ for(org in org_list) {
     message(paste("No data for organization:", org))
   }
 }
+
 
 ### Northeast Other items collected ----
 df_counts <- df_currency %>%
@@ -213,11 +212,8 @@ df_check_northeast_list$cleaning_log <- left_join(df_check_northeast_list$cleani
 df_check_northeast_list$cleaning_log <- df_check_northeast_list$cleaning_log %>%
   mutate(explanation = " ") %>%
   relocate("issue",explanation,"old_value","new_value","change_type", .after = "label::arabic") %>% 
-  mutate(unique_id = paste(uuid,question, sep = "_"),
-         checked = case_when(unique_id %in% log_nes$unique_id ~ "Yes",
-                             TRUE ~ "No")) 
-# %>% 
-#   dplyr::filter(checked == "No")
+  mutate(unique_id = paste(uuid,question, sep = "_")) 
+
 
 
 #Saving the cleaning logs for each organisation in northeast
@@ -260,7 +256,7 @@ write.xlsx(all_outliers, file = "outputs/cleaning_logs/outliers_log_checked_2025
 write.xlsx(all_outliers_notes, file = "outputs/cleaning_logs/all_outliers_checked_with_notes_2025_03_16.xlsx")
 
 #'---------------------------------------------------------------------------------------
-# Data cleaning ----
+# 5. Feedback integration ----
 #'---------------------------------------------------------------------------------------
 # read in the cleaned data
 df_raw <- converted_data$Raw_data
@@ -268,7 +264,7 @@ df_raw <- converted_data$Raw_data
 # read in the cleaning logs
 
 others_filled_logs <- read_excel("outputs/filled_cleaning_logs/others_filled_logs_2025_03_16.xlsx")
-outliers_filled_log <- read_excel("outputs/filled_cleaning_logs/outliers_filled_logs_2025_03_16.xlsx")
+outliers_filled_log <- read_excel("outputs/filled_cleaning_logs/outliers_filled_logs_2025_03_19_updated.xlsx")
 
 filled_logs <- plyr::rbind.fill(others_filled_logs, outliers_filled_log)
 
@@ -299,34 +295,91 @@ df_clean <- create_clean_data(raw_dataset = df_raw,
                               cleaning_log_new_value_column = "new_value")
 
 
-#save the clean dataset
-write.xlsx(df_clean, file = "outputs/enumerator_checks/df_clean_changed.xlsx")
+# redoing all the calculations in the data: read through the UDF:
+calculations_data <- read_excel("functions/calculations_function.xlsx")
 
+df_clean <- apply_calculations(df_clean)
 
 #'---------------------------------------------------------------------------------------
-#Currency conversion after data cleaning----
+# 6. Currency conversion after data cleaning----
 #'---------------------------------------------------------------------------------------
 
 converted_cleaned_data <- currency_conversion(df_clean)
-converted_cleaned_nes <- converted_cleaned_data$Converted_NES_SRP
-converted_cleaned_nws <- converted_cleaned_data$Converted_NWS_TRY
 cleaned_df_currency <- converted_cleaned_data$Data_NES_SRP_NWS_TRY
-exchange_rate <- cleaned_df_currency %>% 
-  tabyl(region,exchange_rate_medians_sell)
+
+
+#'---------------------------------------------------------------------------------------
+# 7. Counting of prices reported----
+#'---------------------------------------------------------------------------------------
+
+variables_to_aggregate <- names(fromJSON("./functions/external_to_internal_mapping.json"))
+variables_to_impute <- variables_to_aggregate[!grepl("^price_smeb_", variables_to_aggregate)]
+
+# Remove unwanted variables and add new ones
+variables_to_impute <- setdiff(variables_to_impute, c("lpg_litre_price_item", "water_liter_price_item"))
+variables_to_impute <- union(variables_to_impute, c("lpg_subsidised_price_item", "lpg_price_item", "water_truck_liter_price_unit_item"))
+
+# Count price reports in df_clean while keeping all columns
+dft_clean <- df_clean %>%
+  mutate(price_reported_counts = rowSums(!is.na(select(., all_of(variables_to_impute))))) %>%
+  group_by(admin4_label) %>%
+  mutate(price_reported_counts_community_level = sum(price_reported_counts, na.rm = TRUE)) %>%
+  ungroup()
+
+# Count price reports in cleaned_converted_data while keeping all columns
+cleaned_dft_currency <- cleaned_df_currency %>%
+  mutate(price_reported_counts = rowSums(!is.na(select(., all_of(variables_to_impute))))) %>%
+  group_by(admin4_label) %>%
+  mutate(price_reported_counts_community_level = sum(price_reported_counts, na.rm = TRUE)) %>%
+  ungroup()
+
+#'---------------------------------------------------------------------------------------
+# 8. Preparations of the deletion log ---
+#'---------------------------------------------------------------------------------------
+deletion_log <- dft_clean %>%
+  filter(price_reported_counts == 0 | price_reported_counts_community_level == 1
+         | X_uuid == "9f9a5ee7-3212-4e9a-8bbc-6d5ba93e7a2f") %>%
+  select(uuid = X_uuid, deviceid, admin4_label, Enumerator_id = "enumerator") %>%
+  mutate(Issue = "Low price reports",
+         `Type of Issue` = "We did not collect prices for this shop",
+         Feedback = NA_character_)
+
+# Remove rows with no price reports and communities with only one price report
+dft_clean <- dft_clean %>%
+  filter(price_reported_counts > 0 ) %>% 
+  filter(price_reported_counts_community_level > 1) %>% 
+  filter(X_uuid != "9f9a5ee7-3212-4e9a-8bbc-6d5ba93e7a2f")
+
+cleaned_dft_currency <- cleaned_dft_currency %>%
+  filter(price_reported_counts > 0 )%>% 
+  filter(price_reported_counts_community_level > 1) %>% 
+  filter(X_uuid != "9f9a5ee7-3212-4e9a-8bbc-6d5ba93e7a2f")
+
+#'---------------------------------------------------------------------------------------
+# 9. Final data formating  ---
+#'---------------------------------------------------------------------------------------
+
+# adding admin names
+geocodes_df <- load_geocode_data("inputs/geo_codes/SYR_REACH_admin4_February2024.xlsx",
+                                 "inputs/geo_codes/1_Geopoints_Pcode_check.xlsx")
+
+
+
+dft_clean <- clean_and_join_geocodes(dft_clean, geocodes_df)
+cleaned_dft_currency <- clean_and_join_geocodes(cleaned_dft_currency, geocodes_df)
 
 cleaned_jmmi_data <- list(
   "raw_data" = df_raw,
-  "cleaned_data" = df_clean,
-  "cleaned_converted_data" = cleaned_df_currency,
-  "exchange_rate" = exchange_rate,
-  "converted_cleaned_nes" = converted_cleaned_nes,
-  "converted_cleaned_nws" = converted_cleaned_nws
+  "cleaned_data" = dft_clean,
+  "cleaned_converted_data" = cleaned_dft_currency,
+  "nes" =cleaned_dft_currency %>% filter(region == "Northeast"),
+  "nws" = cleaned_dft_currency %>% filter(region == "Northwest"),
+  "deletion_log" = deletion_log,
+  "cleaning_log_others" = others_filled_logs,
+  "cleaning_log_outliers" = outliers_filled_log
 )
 
-cleaned_jmmi_data %>%
-  openxlsx::write.xlsx(
-    .,
-    file = paste0("outputs/enumerator_checks//", format(Sys.time(),"%Y_%m_%d_%H%M"), "JMMJ_cleaned_data.xlsx")
-    
-    
-  )
+# Save cleaned data to Excel
+output_path <- paste0("outputs/cleaned_data/", format(Sys.time(), "%Y_%m_%d_%H%M"), "_JMMI_cleaned_data.xlsx")
+write.xlsx(cleaned_jmmi_data, file = output_path)
+

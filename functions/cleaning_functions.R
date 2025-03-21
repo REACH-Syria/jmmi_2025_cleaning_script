@@ -10,7 +10,7 @@ create_directories <- function(base_dir = "outputs", dirs = NULL) {
       "enumerator_checks",
       "filled_cleaning_logs",
       "raw_data_converted",
-      "cleaned_data",
+      "cleaned_data"
     )
   }
   
@@ -23,13 +23,13 @@ create_directories <- function(base_dir = "outputs", dirs = NULL) {
 #'---------------------------------------------------------------------------------------
 load_data_and_tool <- function(filename.dataset, koboToolPath) {
   
-
+  
   raw <- read_excel(filename.dataset, col_types = "text") %>%
     mutate_at(c("start", "end", "date"), ~ as.character(convertToDateTime(as.numeric(.)))) %>%
     mutate_at(c("_submission_time"), ~ as.character(as.Date(as.numeric(.), origin = "1899-12-30"))) %>%
     dplyr::rename(X_uuid = '_uuid')
   
-
+  
   tool.survey <- read_xlsx(koboToolPath,
                            guess_max = 50000,
                            na = c("NA", "", " ", "#N/A", "N/A", "n/a"),
@@ -41,7 +41,7 @@ load_data_and_tool <- function(filename.dataset, koboToolPath) {
       list_name = ifelse(str_starts(type, "select_"), list_name, NA)
     )
   
-
+  
   tool.choices <- read_xlsx(koboToolPath,
                             guess_max = 50000,
                             na = c("NA", "", " ", "#N/A", "N/A", "n/a"),
@@ -50,25 +50,6 @@ load_data_and_tool <- function(filename.dataset, koboToolPath) {
   
   return(list(raw = raw, tool_survey = tool.survey, tool_choices = tool.choices))
 }
-
-#'---------------------------------------------------------------------------------------
-# Other files ----
-#'---------------------------------------------------------------------------------------
-
-
-X2025_03_04_other_responses <- read_excel("outputs/cleaning_logs/2025-03-04_other_responses.xlsx") %>% 
-  mutate(unique_id = paste(uuid,name, sep = "_"))
-
-X2025_03_05_1029_other_log_translated <- read_excel("outputs/cleaning_logs/2025_03_05_1029_other_log_translated.xlsx") %>% 
-  mutate(unique_id = paste(uuid,question, sep = "_"))
-
-X2025_03_06_1008_other_responses <- read_excel("outputs/cleaning_logs/2025_03_06_1008_other_responses.xlsx")
-
-X2025_03_08_1640_other_responses <- read_excel("outputs/cleaning_logs/2025_03_08_1640_other_responses.xlsx")
-
-
-others_bind <- plyr::rbind.fill(X2025_03_04_other_responses,X2025_03_05_1029_other_log_translated,
-                                X2025_03_06_1008_other_responses,X2025_03_08_1640_other_responses)
 
 #'---------------------------------------------------------------------------------------
 # currency conversion ----
@@ -252,17 +233,6 @@ outliers_fuel_water <- function(dft, df) {
 # table_dft_west <- table_dft %>% filter(region == "Northwest")
 # table_dft_east <- table_dft %>% filter(region == "Northeast")
 
-#'---------------------------------------------------------------------------------------
-# questions preparation for the data merge ----
-#'---------------------------------------------------------------------------------------
-
-df_translation <- survey %>%
-  dplyr::select(`label::arabic`,name)%>%
-  na.omit() %>%
-  dplyr::rename("question" = name)
-
-
-
 
 #'---------------------------------------------------------------------------------------
 # list formating functions ----
@@ -303,50 +273,74 @@ clean_log_no_notes <- function(df_list){
                              "exchange_rate_buy_try_syp",
                              "exchange_rate_sell_try_syp",
                              "exchange_rate_buy_usd_try",
-                             "exchange_rate_sell_usd_try"
+                             "exchange_rate_sell_usd_try",
+                             "diaper_other_unit_item",
+                             "diesel_local_subsidised_price_item",
+                             "petrol_local_subsidised_price_item",
+                             "kerosene_subsidised_price_item",
+                             "exchange_rate_sell_usd_syp",
+                             "sleeping_mat_price_unit_item",
+                             "carpet_price_unit_item",
+                             "carpet_other_unit_item","carpet_price_item",
+                             "heater_price_unit_item", "heater_price_item",
+                             "dishwashing_soap_other_unit_item",
+                             "washing_detergent_powder_other_unit_item"
+                             
              ))
   return(df_list)
 }
-
-# filtering out the shared cleaning logs
-# read in the previous files for yesterday
-log_reach <- read_excel("outputs/cleaning_logs/northeast/2025_03_05_northeast_data_checks_REACH.xlsx", 
-                        sheet = "cleaning_log")
-log_soli <- read_excel("outputs/cleaning_logs/northeast/2025_03_05_northeast_data_checks_Solidarites_International.xlsx", 
-                        sheet = "cleaning_log")
-
-X2025_03_06_log_reach <- read_excel("outputs/cleaning_logs/northeast/2025_03_06_northeast_data_checks_REACH.xlsx",
-                                                      sheet = "cleaning_log")
-
-X2025_03_06_log_soli <- read_excel("outputs/cleaning_logs/northeast/2025_03_06_northeast_data_checks_Solidarites_International.xlsx",
-                                    sheet = "cleaning_log")
-
-X2025_03_08_REACH <- read_excel("outputs/cleaning_logs/northeast/2025_03_08_northeast_data_checks_REACH.xlsx",
-                                sheet = "cleaning_log")
+# str_ends(question, "_other_unit_item")|
+#'---------------------------------------------------------------------------------------
+# adding admin names ----
+#'---------------------------------------------------------------------------------------
 
 
-log_nes <- plyr::rbind.fill(log_reach,log_soli, X2025_03_06_log_reach, X2025_03_06_log_soli,X2025_03_08_REACH)
+load_geocode_data <- function(geocode_path, pcode_check_path) {
+  # Read geocode data
+  geocodes <- read_excel(geocode_path) %>%
+    select(Join_Key,
+           AoI,
+           admin1Name_en,
+           admin1Name_ar,
+           admin2Name_en,
+           admin2Name_ar,
+           admin3Name_en,
+           admin3Name_ar,
+           admin4Name_en = LocationName_en,
+           admin4Name_ar = LocationName_ar)
+  
+  # Read Pcode check data
+  R_Pcode_check <- read_excel(pcode_check_path) %>%
+    select(Join_Key = Location_Pcode,
+           AoI,
+           admin1Name_en,
+           admin1Name_ar,
+           admin2Name_en,
+           admin2Name_ar,
+           admin3Name_en,
+           admin3Name_ar,
+           admin4Name_en = LocationName_en,
+           admin4Name_ar = LocationName_ar)
+  
+  # Merge datasets
+  geocodes_df <- rbind(geocodes, R_Pcode_check)
+  
+  return(geocodes_df)
+}
 
-log_nes <- log_nes %>% 
-  mutate(unique_id = paste(uuid,question, sep = "_"))
 
-log_reach <- read_excel("outputs/cleaning_logs/northwest/2025_03_05_northwest_data_checks_REACH.xlsx", 
-                      sheet = "cleaning_log") 
- 
-X2025_03_06_northwest_ATAA <- read_excel("outputs/cleaning_logs/northwest/2025_03_06_northwest_data_checks_ATAA.xlsx",
-                                         sheet = "cleaning_log") 
+library(dplyr)
 
-X2025_03_06_northwest_reach <- read_excel("outputs/cleaning_logs/northwest/2025_03_06_northwest_data_checks_REACH.xlsx",
-                                         sheet = "cleaning_log") 
-
-X2025_03_08_northwest_ATAA <- read_excel("outputs/cleaning_logs/northwest/2025_03_08_northwest_data_checks_ATAA.xlsx",
-                                                     sheet = "cleaning_log")
-
-X2025_03_08_northwest_REACH <- read_excel("outputs/cleaning_logs/northwest/2025_03_08_northwest_data_checks_REACH.xlsx",
-                                                      sheet = "cleaning_log")
-
-
-log_nws <- plyr::rbind.fill(log_reach,X2025_03_06_northwest_ATAA,X2025_03_06_northwest_reach,
-                            X2025_03_08_northwest_ATAA, X2025_03_08_northwest_REACH)%>%
-  mutate(unique_id = paste(uuid,question, sep = "_"))
+# Function to join and clean dataframes
+clean_and_join_geocodes <- function(df, geocodes_df) {
+  df <- df %>%
+    left_join(geocodes_df, by = c("admin4_label" = "Join_Key")) %>%
+    relocate("region", "AoI", "admin1Name_en", "admin1Name_ar", "admin2Name_en",
+             "admin2Name_ar", "admin3Name_en", "admin3Name_ar", "admin4Name_en",
+             "admin4Name_ar", .after = "admin4_label") %>%
+    select(-c(starts_with("_specific_"), "organisation_name_label", "SYR_shop_currency_label_tx",
+              "specific_location" ))
+  
+  return(df)
+}
 
